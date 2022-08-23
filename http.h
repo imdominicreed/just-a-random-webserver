@@ -4,10 +4,10 @@
 namespace domino {
 namespace http {
 
-enum method { kGet, kPost };
+enum Method { kGet, kPost };
 
 struct http_request {
-  method type;
+  Method method;
   std::string url;
 };
 
