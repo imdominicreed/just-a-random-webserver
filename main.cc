@@ -5,14 +5,16 @@
 #include <string>
 #include <stdlib.h>
 #include <sys/stat.h>
-#define SIZE 1024
 
 
-const int PORT = 8080   ;
-const int NUM_LISTEN_REQUEST = 3;
+constexpr int kBufferSize = 1024;
+constexpr int kPort = 8083;
+constexpr int kBacklogMax = 3;
 int socket_fd;
-char* test_file = "/Users/domino/Documents/Projects/E3/goodimage.jpeg";
-char* format_header = "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
+constexpr char kExampleFile[] =
+    "/Users/domino/Documents/Projects/E3/goodimage.jpeg";
+constexpr char kFormatHeader[] =
+    "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
 
 
 int create_socket() {
@@ -24,15 +26,15 @@ int create_socket() {
     return server_fd;
 }
 
-void send_file(int socket, char* file_dr) {
-    FILE *fp = fopen(file_dr, "r");
-    char file_data[SIZE] = {0};
+void send_file(int socket) {
+    FILE *fp = fopen(kExampleFile, "r");
+    char file_data[kBufferSize] = {0};
     struct stat st;
     fstat(fileno(fp), &st);
     int total_size = st.st_size; 
     printf("total:%d\n",total_size);
     char header[1024] = {0};
-    sprintf(header, format_header, total_size, "image/jpeg");
+    sprintf(header, kFormatHeader, total_size, "image/jpeg");
     send(socket, header, strlen(header), 0);
     int send_bytes;
     int sum = 0;
@@ -44,7 +46,7 @@ void send_file(int socket, char* file_dr) {
         }
         printf("entry:\n%s", file_data);
         sum += send_bytes;
-        bzero(file_data, SIZE);
+        bzero(file_data, kBufferSize);
     }
     printf("sum:%d\n",sum);
 }
@@ -56,14 +58,14 @@ int main() {
     // memset((char *)&address, 0, sizeof(address));
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = htonl(INADDR_ANY);
-    address.sin_port = htons(PORT);
+    address.sin_port = htons(kPort);
 
     if (bind(socket_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("cannot bind socket_fd");
         return -1; // TODO: Better return code.
     }
 
-    if (listen(socket_fd, NUM_LISTEN_REQUEST) < 0) {
+    if (listen(socket_fd, kBacklogMax) < 0) {
         perror("cannot listen to request");
         return -1;
     }
@@ -81,7 +83,7 @@ int main() {
         char buffer[30000] = {0};
         read( new_socket , buffer, 30000);
         printf("%s\n",buffer);
-        send_file(new_socket, test_file);
+        send_file(new_socket);
         printf("------------------Hello message sent-------------------\n");
         close(new_socket);
     }
