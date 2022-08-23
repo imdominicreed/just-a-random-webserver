@@ -8,7 +8,7 @@ enum Method { kGet, kPost };
 
 struct http_request {
   Method method;
-  std::string url;
+  std::string endpoint;
 };
 
 struct http_get : http_request {
