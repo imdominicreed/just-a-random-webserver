@@ -13,6 +13,6 @@ struct http_get : http_request {
 };
 
 struct http_post : http_request {
-  int fd;
+  int file_descriptor;
   std::string content_type;
 };
