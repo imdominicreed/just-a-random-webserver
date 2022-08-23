@@ -1,10 +1,13 @@
 #include <string>
 #include <unordered_map>
 
-enum http_type { get, post };
+namespace domino {
+namespace http {
+
+enum method { kGet, kPost };
 
 struct http_request {
-  http_type type;
+  method type;
   std::string url;
 };
 
@@ -16,3 +19,6 @@ struct http_post : http_request {
   int file_descriptor;
   std::string content_type;
 };
+
+}  // namespace http
+}  // namespace domino
