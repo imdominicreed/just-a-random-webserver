@@ -1,14 +1,17 @@
 #include <netinet/in.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <string.h>
-#include <string>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
+#include <string>
+#include <unordered_map>
 
-constexpr int kBufferSize = 1024;
-constexpr int kPort = 8083;
+#include "http.h"
+using namespace domino;
+constexpr int kBufferSize = 5024;
+constexpr int kPort = 8080;
 constexpr int kBacklogMax = 3;
 int socket_fd;
 constexpr char kExampleFile[] =
@@ -16,77 +19,144 @@ constexpr char kExampleFile[] =
 constexpr char kFormatHeader[] =
     "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
 
-
 int create_socket() {
-    int server_fd;
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("cannot create socket_fd"); 
-        return -1; // TODO: Better return code.
-    }
-    return server_fd;
+  int server_fd;
+  if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+    perror("cannot create socket_fd");
+    return -1;  // TODO: Better return code.
+  }
+  return server_fd;
 }
 
 void send_file(int socket) {
-    FILE *fp = fopen(kExampleFile, "r");
-    char file_data[kBufferSize] = {0};
-    struct stat st;
-    fstat(fileno(fp), &st);
-    int total_size = st.st_size; 
-    printf("total:%d\n",total_size);
-    char header[1024] = {0};
-    sprintf(header, kFormatHeader, total_size, "image/jpeg");
-    send(socket, header, strlen(header), 0);
-    int send_bytes;
-    int sum = 0;
-    while((send_bytes = fread(file_data, 1, sizeof(file_data), fp)) > 0) {
-        int sent;
-        if ((sent = send(socket, file_data, send_bytes, 0) )== -1) {
-            perror("[-]Error in sending file.\n");
-            exit(1);
-        }
-        printf("entry:\n%s", file_data);
-        sum += send_bytes;
-        bzero(file_data, kBufferSize);
+  FILE *fp = fopen(kExampleFile, "r");
+  char file_data[kBufferSize] = {0};
+  struct stat st;
+  fstat(fileno(fp), &st);
+  int total_size = st.st_size;
+  printf("total:%d\n", total_size);
+  char header[1024] = {0};
+  sprintf(header, kFormatHeader, total_size, "image/jpeg");
+  send(socket, header, strlen(header), 0);
+  int send_bytes;
+  int sum = 0;
+  while ((send_bytes = fread(file_data, 1, sizeof(file_data), fp)) > 0) {
+    int sent;
+    if ((sent = send(socket, file_data, send_bytes, 0)) == -1) {
+      perror("[-]Error in sending file.\n");
+      exit(1);
     }
-    printf("sum:%d\n",sum);
+    printf("entry:\n%s", file_data);
+    sum += send_bytes;
+    bzero(file_data, kBufferSize);
+  }
+  printf("sum:%d\n", sum);
+}
+
+void parse_args(std::string &endpoint,
+                std::unordered_map<std::string, std::string> &args) {
+  size_t start = endpoint.find("?");
+  if (start == std::string::npos) {
+    return;
+  }
+  size_t index = start + 1;
+  size_t next_index;
+  while ((next_index = endpoint.find("&", index)) != std::string::npos) {
+    std::string arg = endpoint.substr(index, next_index - index);
+    int equal_index = arg.find("=");
+    std::string key = arg.substr(0, equal_index);
+    std::string value = arg.substr(equal_index + 1);
+    args[key] = value;
+    index = next_index + 1;
+  }
+  std::string arg = endpoint.substr(index);
+  int equal_index = arg.find("=");
+  std::string key = arg.substr(0, equal_index);
+  std::string value = arg.substr(equal_index + 1);
+  args[key] = value;
+  endpoint.erase(start);
+}
+
+std::string substring_to_token(size_t &http_index, std::string &http_string,
+                               std::string delimiter, int request_socket) {
+  size_t end = http_string.find(delimiter, http_index);
+
+  if (end == std::string::npos) {
+    char buffer[kBufferSize] = {0};
+    int amount_read = read(request_socket, buffer, kBufferSize);
+    std::string tmp(buffer, amount_read);
+    std::string begin = http_string.substr(http_index);
+    http_string = tmp;
+    http_index = 0;
+    return begin +
+           substring_to_token(http_index, tmp, delimiter, request_socket);
+  }
+  std::string ret = http_string.substr(http_index, end - http_index);
+  http_index = end + delimiter.length();
+  return ret;
+}
+
+http::http_request parse_socket_request(int request_socket) {
+  std::unordered_map<std::string, std::string> args;
+  char buffer[kBufferSize] = {0};
+  int amount_read = read(request_socket, buffer, kBufferSize);
+  std::string http_string(buffer, amount_read);
+  printf("%s", http_string.c_str());
+  size_t http_index = 0;
+  std::string method =
+      substring_to_token(http_index, http_string, " ", request_socket);
+  if (method != "GET" && method != "POST") {
+    throw std::invalid_argument(
+        "Invalid HTTP Request: Only support GET and POST!");
+  }
+  std::string endpoint_and_args =
+      substring_to_token(http_index, http_string, " ", request_socket);
+  parse_args(endpoint_and_args, args);
+  http::http_request request{};
+  request.endpoint = endpoint_and_args;
+  request.args = args;
+  if (method == "GET") {
+    request.method = http::kGet;
+    return request;
+  }
+  request.method = http::kPost;
+  return request;
 }
 
 int main() {
-    socket_fd = create_socket();
+  socket_fd = create_socket();
 
-    struct sockaddr_in address = {0};
-    // memset((char *)&address, 0, sizeof(address));
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = htonl(INADDR_ANY);
-    address.sin_port = htons(kPort);
+  struct sockaddr_in address = {0};
+  // memset((char *)&address, 0, sizeof(address));
+  address.sin_family = AF_INET;
+  address.sin_addr.s_addr = htonl(INADDR_ANY);
+  address.sin_port = htons(kPort);
 
-    if (bind(socket_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("cannot bind socket_fd");
-        return -1; // TODO: Better return code.
+  if (bind(socket_fd, (struct sockaddr *)&address, sizeof(address)) < 0) {
+    perror("cannot bind socket_fd");
+    return -1;  // TODO: Better return code.
+  }
+
+  if (listen(socket_fd, kBacklogMax) < 0) {
+    perror("cannot listen to request");
+    return -1;
+  }
+
+  // char *hello = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length:
+  // 12\n\nHello world!";
+  while (true) {
+    printf("\n+++++++ Waiting for new connection ++++++++\n\n");
+    int new_socket;
+    int addr_len = sizeof(address);
+    if ((new_socket = accept(socket_fd, (struct sockaddr *)&address,
+                             (socklen_t *)&addr_len)) < 0) {
+      perror("failed to accept");
+      exit(EXIT_FAILURE);
     }
+    parse_socket_request(new_socket);
+    printf("------------------Hello message sent-------------------\n");
+    close(new_socket);
+  }
 
-    if (listen(socket_fd, kBacklogMax) < 0) {
-        perror("cannot listen to request");
-        return -1;
-    }
-
-    // char *hello = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length: 12\n\nHello world!";
-    while(true) {
-        printf("\n+++++++ Waiting for new connection ++++++++\n\n");
-        int new_socket;
-        int addr_len = sizeof(address);
-        if ((new_socket = accept(socket_fd, (struct sockaddr*)&address, (socklen_t*)&addr_len)) < 0) {
-            perror("failed to accept");
-            exit(EXIT_FAILURE);
-
-        }
-        char buffer[30000] = {0};
-        read( new_socket , buffer, 30000);
-        printf("%s\n",buffer);
-        send_file(new_socket);
-        printf("------------------Hello message sent-------------------\n");
-        close(new_socket);
-    }
-
-    return 0;
+  return 0;
 }
