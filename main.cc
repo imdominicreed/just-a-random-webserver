@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 #include <string>
@@ -10,7 +11,7 @@
 
 #include "http.h"
 using namespace domino;
-constexpr int kBufferSize = 5024;
+constexpr int kBufferSize = 1024;
 constexpr int kPort = 8080;
 constexpr int kBacklogMax = 3;
 int socket_fd;
@@ -18,6 +19,10 @@ constexpr char kExampleFile[] =
     "/Users/domino/Documents/Projects/E3/goodimage.jpeg";
 constexpr char kFormatHeader[] =
     "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
+
+constexpr char kFileFormat[] = "data_%llu.data";
+
+constexpr char kResponse[] = "HTTP/1.1 201 Created\r\n\r\n";
 
 int create_socket() {
   int server_fd;
@@ -51,6 +56,15 @@ void send_file(int socket) {
     bzero(file_data, kBufferSize);
   }
   printf("sum:%d\n", sum);
+}
+
+unsigned long long get_epochs_ms() {
+  struct timeval tv;
+  gettimeofday(&tv, NULL);
+  unsigned long long millisecondsSinceEpoch =
+      (unsigned long long)(tv.tv_sec) * 1000 +
+      (unsigned long long)(tv.tv_usec) / 1000;
+  return millisecondsSinceEpoch;
 }
 
 void parse_args(std::string &endpoint,
@@ -96,12 +110,30 @@ std::string substring_to_token(size_t &http_index, std::string &http_string,
   return ret;
 }
 
+std::string read_post_data(int request_socket,
+                           unsigned long long content_size) {
+  send(request_socket, kResponse, strlen(kResponse), 0);
+  char buffer[kBufferSize] = {0};
+  unsigned long long sum = 0;
+  char file_name[50] = {};
+  sprintf(file_name, kFileFormat, get_epochs_ms());
+  FILE *f = fopen(file_name, "w");
+  while (sum < content_size) {
+    sum += read(request_socket, buffer, kBufferSize - 1);
+    fputs(buffer, f);
+    bzero(buffer, kBufferSize);
+  }
+  fflush(f);
+  send(request_socket, "HTTP/1.1 200 OK\r\n\r\n", 25, 0);
+  return std::string(file_name);
+}
+
 http::http_request parse_socket_request(int request_socket) {
   std::unordered_map<std::string, std::string> args;
   char buffer[kBufferSize] = {0};
   int amount_read = read(request_socket, buffer, kBufferSize);
   std::string http_string(buffer, amount_read);
-  printf("%s", http_string.c_str());
+  printf("%s\n", http_string.c_str());
   size_t http_index = 0;
   std::string method =
       substring_to_token(http_index, http_string, " ", request_socket);
@@ -119,7 +151,20 @@ http::http_request parse_socket_request(int request_socket) {
     request.method = http::kGet;
     return request;
   }
+  http_index = 0;
+  substring_to_token(http_index, http_string, "Content-Type: ", request_socket);
+  request.args["content_type"] =
+      substring_to_token(http_index, http_string, "\n", request_socket);
+  http_index = 0;
+  substring_to_token(http_index, http_string,
+                     "Content-Length: ", request_socket);
+
+  std::string str_size =
+      substring_to_token(http_index, http_string, "\n", request_socket);
+
+  unsigned long long size = strtoul(str_size.c_str(), NULL, 10);
   request.method = http::kPost;
+  request.args["file_name"] = read_post_data(request_socket, size);
   return request;
 }
 
