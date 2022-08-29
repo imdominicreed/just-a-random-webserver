@@ -11,7 +11,7 @@
 
 #include "http.h"
 using namespace domino;
-constexpr int kBufferSize = 1024;
+constexpr int kBufferSize = 8192;  // Headers cannot exceed 8KB if so then bug
 constexpr int kPort = 8080;
 constexpr int kBacklogMax = 3;
 int socket_fd;
@@ -22,7 +22,7 @@ constexpr char kFormatHeader[] =
 
 constexpr char kFileFormat[] = "data_%llu.data";
 
-constexpr char kResponse[] = "HTTP/1.1 201 Created\r\n\r\n";
+constexpr char kResponse[] = "HTTP/1.1 200 OK\r\n\r\n";
 
 int create_socket() {
   int server_fd;
@@ -92,79 +92,71 @@ void parse_args(std::string &endpoint,
 }
 
 std::string substring_to_token(size_t &http_index, std::string &http_string,
-                               std::string delimiter, int request_socket) {
+                               std::string delimiter) {
   size_t end = http_string.find(delimiter, http_index);
-
-  if (end == std::string::npos) {
-    char buffer[kBufferSize] = {0};
-    int amount_read = read(request_socket, buffer, kBufferSize);
-    std::string tmp(buffer, amount_read);
-    std::string begin = http_string.substr(http_index);
-    http_string = tmp;
-    http_index = 0;
-    return begin +
-           substring_to_token(http_index, tmp, delimiter, request_socket);
-  }
   std::string ret = http_string.substr(http_index, end - http_index);
   http_index = end + delimiter.length();
   return ret;
 }
 
-std::string read_post_data(int request_socket,
-                           unsigned long long content_size) {
-  send(request_socket, kResponse, strlen(kResponse), 0);
+std::string read_post_data(int request_socket, unsigned long long content_size,
+                           std::string in_buffer) {
   char buffer[kBufferSize] = {0};
   unsigned long long sum = 0;
-  char file_name[50] = {};
+  char file_name[50] = {0};
   sprintf(file_name, kFileFormat, get_epochs_ms());
   FILE *f = fopen(file_name, "w");
+  size_t index = 0;
+  substring_to_token(index, in_buffer, "\r\n\r\n");
+  fputs(in_buffer.substr(index).c_str(), f);
+  sum += in_buffer.size() - index;
   while (sum < content_size) {
     sum += read(request_socket, buffer, kBufferSize - 1);
     fputs(buffer, f);
     bzero(buffer, kBufferSize);
   }
   fflush(f);
-  send(request_socket, "HTTP/1.1 200 OK\r\n\r\n", 25, 0);
+  send(request_socket, kResponse, strlen(kResponse), 0);
   return std::string(file_name);
 }
 
 http::http_request parse_socket_request(int request_socket) {
   std::unordered_map<std::string, std::string> args;
   char buffer[kBufferSize] = {0};
-  int amount_read = read(request_socket, buffer, kBufferSize);
+  int amount_read = read(request_socket, buffer, kBufferSize - 1);
   std::string http_string(buffer, amount_read);
-  printf("%s\n", http_string.c_str());
   size_t http_index = 0;
-  std::string method =
-      substring_to_token(http_index, http_string, " ", request_socket);
+  std::string method = substring_to_token(http_index, http_string, " ");
   if (method != "GET" && method != "POST") {
     throw std::invalid_argument(
         "Invalid HTTP Request: Only support GET and POST!");
   }
   std::string endpoint_and_args =
-      substring_to_token(http_index, http_string, " ", request_socket);
+      substring_to_token(http_index, http_string, " ");
   parse_args(endpoint_and_args, args);
   http::http_request request{};
   request.endpoint = endpoint_and_args;
   request.args = args;
+
   if (method == "GET") {
     request.method = http::kGet;
     return request;
   }
-  http_index = 0;
-  substring_to_token(http_index, http_string, "Content-Type: ", request_socket);
+
+  substring_to_token(
+      http_index, http_string,
+      "Content-Type: ");  // Technically headers are case-insenstive but
+                          // practice is that they are supposed to be
+                          // capatilized can be fixed later!
   request.args["content_type"] =
-      substring_to_token(http_index, http_string, "\n", request_socket);
+      substring_to_token(http_index, http_string, "\n");
   http_index = 0;
-  substring_to_token(http_index, http_string,
-                     "Content-Length: ", request_socket);
+  substring_to_token(http_index, http_string, "Content-Length: ");
 
-  std::string str_size =
-      substring_to_token(http_index, http_string, "\n", request_socket);
-
+  std::string str_size = substring_to_token(http_index, http_string, "\n");
   unsigned long long size = strtoul(str_size.c_str(), NULL, 10);
   request.method = http::kPost;
-  request.args["file_name"] = read_post_data(request_socket, size);
+  request.args["file_name"] = read_post_data(request_socket, size, http_string);
   return request;
 }
 
@@ -187,8 +179,6 @@ int main() {
     return -1;
   }
 
-  // char *hello = "HTTP/1.1 200 OK\nContent-Type: text/plain\nContent-Length:
-  // 12\n\nHello world!";
   while (true) {
     printf("\n+++++++ Waiting for new connection ++++++++\n\n");
     int new_socket;
@@ -198,6 +188,7 @@ int main() {
       perror("failed to accept");
       exit(EXIT_FAILURE);
     }
+    sleep(2);
     parse_socket_request(new_socket);
     printf("------------------Hello message sent-------------------\n");
     close(new_socket);
