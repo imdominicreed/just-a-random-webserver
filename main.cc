@@ -10,19 +10,12 @@
 #include <unordered_map>
 
 #include "http.h"
+#include "socket_handler.h"
 using namespace domino;
-constexpr int kBufferSize = 8192;  // Headers cannot exceed 8KB if so then bug
 constexpr int kPort = 8080;
 constexpr int kBacklogMax = 3;
-int socket_fd;
 constexpr char kExampleFile[] =
-    "/Users/domino/Documents/Projects/E3/goodimage.jpeg";
-constexpr char kFormatHeader[] =
-    "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nContent-Type: %s\r\n\r\n";
-
-constexpr char kFileFormat[] = "data_%llu.data";
-
-constexpr char kResponse[] = "HTTP/1.1 200 OK\r\n\r\n";
+    "/Users/domino/Documents/Projects/just-a-random-webserver/main.cc";
 
 int create_socket() {
   int server_fd;
@@ -33,135 +26,8 @@ int create_socket() {
   return server_fd;
 }
 
-void send_file(int socket) {
-  FILE *fp = fopen(kExampleFile, "r");
-  char file_data[kBufferSize] = {0};
-  struct stat st;
-  fstat(fileno(fp), &st);
-  int total_size = st.st_size;
-  printf("total:%d\n", total_size);
-  char header[1024] = {0};
-  sprintf(header, kFormatHeader, total_size, "image/jpeg");
-  send(socket, header, strlen(header), 0);
-  int send_bytes;
-  int sum = 0;
-  while ((send_bytes = fread(file_data, 1, sizeof(file_data), fp)) > 0) {
-    int sent;
-    if ((sent = send(socket, file_data, send_bytes, 0)) == -1) {
-      perror("[-]Error in sending file.\n");
-      exit(1);
-    }
-    printf("entry:\n%s", file_data);
-    sum += send_bytes;
-    bzero(file_data, kBufferSize);
-  }
-  printf("sum:%d\n", sum);
-}
-
-unsigned long long get_epochs_ms() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  unsigned long long millisecondsSinceEpoch =
-      (unsigned long long)(tv.tv_sec) * 1000 +
-      (unsigned long long)(tv.tv_usec) / 1000;
-  return millisecondsSinceEpoch;
-}
-
-void parse_args(std::string &endpoint,
-                std::unordered_map<std::string, std::string> &args) {
-  size_t start = endpoint.find("?");
-  if (start == std::string::npos) {
-    return;
-  }
-  size_t index = start + 1;
-  size_t next_index;
-  while ((next_index = endpoint.find("&", index)) != std::string::npos) {
-    std::string arg = endpoint.substr(index, next_index - index);
-    int equal_index = arg.find("=");
-    std::string key = arg.substr(0, equal_index);
-    std::string value = arg.substr(equal_index + 1);
-    args[key] = value;
-    index = next_index + 1;
-  }
-  std::string arg = endpoint.substr(index);
-  int equal_index = arg.find("=");
-  std::string key = arg.substr(0, equal_index);
-  std::string value = arg.substr(equal_index + 1);
-  args[key] = value;
-  endpoint.erase(start);
-}
-
-std::string substring_to_token(size_t &http_index, std::string &http_string,
-                               std::string delimiter) {
-  size_t end = http_string.find(delimiter, http_index);
-  std::string ret = http_string.substr(http_index, end - http_index);
-  http_index = end + delimiter.length();
-  return ret;
-}
-
-std::string read_post_data(int request_socket, unsigned long long content_size,
-                           std::string in_buffer) {
-  char buffer[kBufferSize] = {0};
-  unsigned long long sum = 0;
-  char file_name[50] = {0};
-  sprintf(file_name, kFileFormat, get_epochs_ms());
-  FILE *f = fopen(file_name, "w");
-  size_t index = 0;
-  substring_to_token(index, in_buffer, "\r\n\r\n");
-  fputs(in_buffer.substr(index).c_str(), f);
-  sum += in_buffer.size() - index;
-  while (sum < content_size) {
-    sum += read(request_socket, buffer, kBufferSize - 1);
-    fputs(buffer, f);
-    bzero(buffer, kBufferSize);
-  }
-  fflush(f);
-  send(request_socket, kResponse, strlen(kResponse), 0);
-  return std::string(file_name);
-}
-
-http::http_request parse_socket_request(int request_socket) {
-  std::unordered_map<std::string, std::string> args;
-  char buffer[kBufferSize] = {0};
-  int amount_read = read(request_socket, buffer, kBufferSize - 1);
-  std::string http_string(buffer, amount_read);
-  size_t http_index = 0;
-  std::string method = substring_to_token(http_index, http_string, " ");
-  if (method != "GET" && method != "POST") {
-    throw std::invalid_argument(
-        "Invalid HTTP Request: Only support GET and POST!");
-  }
-  std::string endpoint_and_args =
-      substring_to_token(http_index, http_string, " ");
-  parse_args(endpoint_and_args, args);
-  http::http_request request{};
-  request.endpoint = endpoint_and_args;
-  request.args = args;
-
-  if (method == "GET") {
-    request.method = http::kGet;
-    return request;
-  }
-
-  substring_to_token(
-      http_index, http_string,
-      "Content-Type: ");  // Technically headers are case-insenstive but
-                          // practice is that they are supposed to be
-                          // capatilized can be fixed later!
-  request.args["content_type"] =
-      substring_to_token(http_index, http_string, "\n");
-  http_index = 0;
-  substring_to_token(http_index, http_string, "Content-Length: ");
-
-  std::string str_size = substring_to_token(http_index, http_string, "\n");
-  unsigned long long size = strtoul(str_size.c_str(), NULL, 10);
-  request.method = http::kPost;
-  request.args["file_name"] = read_post_data(request_socket, size, http_string);
-  return request;
-}
-
 int main() {
-  socket_fd = create_socket();
+  int socket_fd = create_socket();
 
   struct sockaddr_in address = {0};
   // memset((char *)&address, 0, sizeof(address));
@@ -178,20 +44,13 @@ int main() {
     perror("cannot listen to request");
     return -1;
   }
-
+  handler::SocketHandler socket_handler;
   while (true) {
     printf("\n+++++++ Waiting for new connection ++++++++\n\n");
-    int new_socket;
-    int addr_len = sizeof(address);
-    if ((new_socket = accept(socket_fd, (struct sockaddr *)&address,
-                             (socklen_t *)&addr_len)) < 0) {
-      perror("failed to accept");
-      exit(EXIT_FAILURE);
-    }
-    sleep(2);
-    parse_socket_request(new_socket);
+    socket_handler.waitForRequestSocket(socket_fd, address, sizeof(address));
+    http::http_request request = socket_handler.parseSocketRequest();
     printf("------------------Hello message sent-------------------\n");
-    close(new_socket);
+    socket_handler.closeSocket();
   }
 
   return 0;
