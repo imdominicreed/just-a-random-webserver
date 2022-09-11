@@ -19,7 +19,7 @@ jobs:
         shell: bash
         run: sudo apt install clang-format-13
 
-      - name: 🖨️ Cloning .clang-format from repo
+      - name: Clone .clang-format from repo
         if: ${{ inputs.library != '' }}
         run: wget https://raw.githubusercontent.com/imdominicreed/just-a-random-webserver/lint/.clang-format -O .clang-format
 
@@ -28,5 +28,5 @@ jobs:
         if: always()
         run: |
              clang-format --dry-run --Werror \
-             $(find include -name "*.h")
+             $(find include -name "*.h") \
              $(find src -name "*.cc")
