@@ -9,13 +9,12 @@
 #include <string>
 #include <unordered_map>
 
-#include "http.h"
-#include "socket_handler.h"
+#include "../include/http.h"
+#include "../include/socket_handler.h"
+
 using namespace domino;
 constexpr int kPort = 8080;
 constexpr int kBacklogMax = 3;
-constexpr char kExampleFile[] =
-    "/Users/domino/Documents/Projects/just-a-random-webserver/main.cc";
 
 int create_socket() {
   int server_fd;
