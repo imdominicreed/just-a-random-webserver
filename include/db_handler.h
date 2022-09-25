@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-const char *kDbName = "file_metadata.db";
+const char *kDbName = "bin/file_metadata.db";
 const char *kCreateFileTable =
     "CREATE TABLE IF NOT EXISTS file_metadata("
     "id text primary_key not null, "
