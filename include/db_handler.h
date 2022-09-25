@@ -16,6 +16,8 @@ const char *kQueryFile = "SELECT * FROM file_metadata WHERE file_name=\"%s\";";
 const char *kInsertRow =
     "INSERT INTO file_metadata (id, file_name, deleted) VALUES "
     "(\"%s\",\"%s\",false);";
+const char *kMarkDelete =
+    "UPDATE file_metadata SET deleted = true WHERE file_name=\"%s\";";
 
 namespace domino {
 struct db_row {
@@ -69,11 +71,22 @@ class DbHandler {
     createMainTable();
   }
 
-  void insertFile(std::string id, std::string file_name) {
+  bool markFileDeleted(std::string file_name) {
+    char sql_stmt[512];
+    sprintf(sql_stmt, kMarkDelete, file_name.c_str());
+
+    std::vector<db_row> rows = execQuerySqlStmt(sql_stmt);
+
+    return rows.size() == 1;
+  }
+
+  bool insertFile(std::string id, std::string file_name) {
     char sql_stmt[512];
     sprintf(sql_stmt, kInsertRow, id.c_str(), file_name.c_str());
 
-    execActionSqlStmt(sql_stmt);
+    std::vector<db_row> rows = execQuerySqlStmt(sql_stmt);
+
+    return rows.size() == 1;
   }
 
   std::optional<db_row> getFile(std::string file_name) {
