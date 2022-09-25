@@ -18,6 +18,7 @@ const char *kInsertRow =
     "(\"%s\",\"%s\",false);";
 const char *kMarkDelete =
     "UPDATE file_metadata SET deleted = true WHERE file_name=\"%s\";";
+const char *kQueryDelete = "SELECT * FROM file_meta WHERE deleted = true;";
 
 namespace domino {
 struct db_row {
@@ -98,6 +99,8 @@ class DbHandler {
     if (rows.size() == 1) return rows[0];
     return {};
   }
+
+  std::vector<db_row> getDeleteRows() { return execQuerySqlStmt(kQueryDelete); }
 };
 
 }  // namespace domino
