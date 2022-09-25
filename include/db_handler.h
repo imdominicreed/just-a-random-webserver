@@ -18,7 +18,8 @@ const char *kInsertRow =
     "(\"%s\",\"%s\",false);";
 const char *kMarkDelete =
     "UPDATE file_metadata SET deleted = true WHERE file_name=\"%s\";";
-const char *kQueryDelete = "SELECT * FROM file_meta WHERE deleted = true;";
+const char *kQueryDelete = "SELECT * FROM file_metadata WHERE deleted = true;";
+const char *kDeleteRow = "DELETE FROM file_metadata WHERE file_name=\"%s\";";
 
 namespace domino {
 struct db_row {
@@ -101,6 +102,15 @@ class DbHandler {
   }
 
   std::vector<db_row> getDeleteRows() { return execQuerySqlStmt(kQueryDelete); }
+
+  bool deleteRow(std::string file_name) {
+    char sql_stmt[512];
+    sprintf(sql_stmt, kDeleteRow, file_name.c_str());
+
+    std::vector<db_row> rows = execQuerySqlStmt(sql_stmt);
+
+    return rows.size() == 1;
+  }
 };
 
 }  // namespace domino
