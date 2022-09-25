@@ -1,6 +1,7 @@
 #include <sqlite3.h>
 
 #include <iostream>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -14,7 +15,7 @@ const char *kCreateFileTable =
 
 const char *kQueryFile = "SELECT * FROM file_metadata WHERE file_name=\"%s\";";
 const char *kInsertRow =
-    "INSERT INTO file_metadata (id, file_name, deleted) VALUES "
+    "INSERT  or IGNORE  INTO file_metadata (id, file_name, deleted) VALUES "
     "(\"%s\",\"%s\",false);";
 const char *kMarkDelete =
     "UPDATE file_metadata SET deleted = true WHERE file_name=\"%s\";";
@@ -26,6 +27,11 @@ struct db_row {
   std::string id;
   std::string file_name;
   bool deleted;
+
+  std::string toString() {
+    return "id: " + id + " file name: " + file_name +
+           " deleted: " + (deleted ? " True" : "False");
+  }
 };
 
 class DbHandler {
@@ -73,22 +79,29 @@ class DbHandler {
     createMainTable();
   }
 
+  DbHandler(std::string test_db) {
+    int rc = sqlite3_open(test_db.c_str(), &db);
+    checkRC(rc);
+
+    createMainTable();
+  }
+
   bool markFileDeleted(std::string file_name) {
     char sql_stmt[512];
     sprintf(sql_stmt, kMarkDelete, file_name.c_str());
 
-    std::vector<db_row> rows = execQuerySqlStmt(sql_stmt);
+    execActionSqlStmt(sql_stmt);
 
-    return rows.size() == 1;
+    return sqlite3_changes(db) == 1;
   }
 
   bool insertFile(std::string id, std::string file_name) {
     char sql_stmt[512];
     sprintf(sql_stmt, kInsertRow, id.c_str(), file_name.c_str());
 
-    std::vector<db_row> rows = execQuerySqlStmt(sql_stmt);
+    execActionSqlStmt(sql_stmt);
 
-    return rows.size() == 1;
+    return sqlite3_changes(db) == 1;
   }
 
   std::optional<db_row> getFile(std::string file_name) {
@@ -107,9 +120,9 @@ class DbHandler {
     char sql_stmt[512];
     sprintf(sql_stmt, kDeleteRow, file_name.c_str());
 
-    std::vector<db_row> rows = execQuerySqlStmt(sql_stmt);
+    execActionSqlStmt(sql_stmt);
 
-    return rows.size() == 1;
+    return sqlite3_changes(db) == 1;
   }
 };
 

@@ -1,0 +1,22 @@
+getDeleteRows
+getFile no_file
+deleteRow no_file
+markFileDeleted no_file
+insertFile 1 test1
+insertFile 2 test2
+insertFile 3 test3
+getFile test1
+getFile test2
+getFile test3
+insertFile 1 test1
+insertFile 2 test1
+markFileDeleted test1
+markFileDeleted test2
+getDeleteRows
+deleteRow test1
+deleteRow test2
+getFile test1
+getFile test2
+getFile test3
+quit
+

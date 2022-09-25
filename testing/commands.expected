@@ -1,0 +1,22 @@
+Printing rows!
+File not Found!
+No Deletetion!
+No Mark Deletetion!
+Inserted!
+Inserted!
+Not inserted!
+id: 1 file name: test1 deleted: False
+id: 2 file name: test2 deleted: False
+id: 3 file name: test3 deleted: False
+Not inserted!
+Not inserted!
+Mark Deleted!
+Mark Deleted!
+Printing rows!
+id: 1 file name: test1 deleted:  True
+id: 2 file name: test2 deleted:  True
+Deleted!
+Deleted!
+File not Found!
+File not Found!
+id: 3 file name: test3 deleted: False
