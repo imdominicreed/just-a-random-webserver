@@ -4,6 +4,9 @@
 
 #include "file_handler.h"
 
+#ifndef SOCKET_HANDLER_H
+#define SOCKET_HANDLER_H
+
 namespace domino {
 namespace handler {
 
@@ -169,3 +172,5 @@ class SocketHandler {
 };
 }  // namespace handler
 }  // namespace domino
+
+#endif

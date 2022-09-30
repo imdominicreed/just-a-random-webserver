@@ -9,6 +9,7 @@
 #include <string>
 #include <unordered_map>
 
+#include "../include/db_handler.h"
 #include "../include/http.h"
 #include "../include/socket_handler.h"
 
@@ -27,6 +28,7 @@ int create_socket() {
 
 int main() {
   int socket_fd = create_socket();
+  DbHandler db_handler;
 
   struct sockaddr_in address = {0};
   // memset((char *)&address, 0, sizeof(address));

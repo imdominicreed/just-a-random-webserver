@@ -2,6 +2,9 @@
 #include <fstream>
 #include <string>
 
+#ifndef FILE_HANDLER_H
+#define FILE_HANDLER_H
+
 namespace domino {
 
 namespace handler {
@@ -71,3 +74,5 @@ class FileHandler {
 };
 }  // namespace handler
 }  // namespace domino
+
+#endif
