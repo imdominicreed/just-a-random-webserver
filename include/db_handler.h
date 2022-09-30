@@ -5,6 +5,9 @@
 #include <string>
 #include <vector>
 
+#ifndef DB_HANDLER_H
+#define DB_HANDLER_H
+
 const char *kDbName = "bin/file_metadata.db";
 const char *kCreateFileTable =
     "CREATE TABLE IF NOT EXISTS file_metadata("
@@ -127,3 +130,4 @@ class DbHandler {
 };
 
 }  // namespace domino
+#endif
