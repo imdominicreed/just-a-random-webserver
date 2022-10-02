@@ -1,6 +1,8 @@
 #include <string>
 #include <unordered_map>
 
+#ifndef HTTP_H_
+#define HTTP_H_
 namespace domino {
 namespace http {
 
@@ -14,3 +16,4 @@ struct http_request {
 
 }  // namespace http
 }  // namespace domino
+#endif  // HTTP_H_
