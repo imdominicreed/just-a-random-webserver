@@ -2,14 +2,12 @@
 #include <sstream>
 #include <string>
 
-#include "../include/db_handler.h"
-
-using namespace domino;
+#include "db_handler.h"
 
 std::string kTestDb = "bin/test_db.db";
 
 int main() {
-  DbHandler db(kTestDb);
+  domino::sqlite::Database db(kTestDb);
   while (true) {
     try {
       std::string line;
