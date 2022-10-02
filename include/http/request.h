@@ -1,14 +1,15 @@
 #include <string>
 #include <unordered_map>
 
-#ifndef HTTP_H_
-#define HTTP_H_
+#ifndef HTTP_REQUEST_H_
+#define HTTP_REQUEST_H_
 namespace domino {
 namespace http {
 
 enum Method { kGet, kPost };
 
-struct http_request {
+class Request {
+ public:
   Method method;
   std::string endpoint;
   std::unordered_map<std::string, std::string> args;
@@ -16,4 +17,4 @@ struct http_request {
 
 }  // namespace http
 }  // namespace domino
-#endif  // HTTP_H_
+#endif  // HTTP_REQUEST_H_
