@@ -126,8 +126,8 @@ class SocketHandler {
 
   void closeSocket() { close(socket_fd); }
 
-  http::http_request parseSocketRequest() {
-    http::http_request request{};
+  domino::http::Request parseSocketRequest() {
+    domino::http::Request request{};
 
     char buffer[kBufferSize];
     size_t amount_read = readBuffer(buffer, kBufferSize);

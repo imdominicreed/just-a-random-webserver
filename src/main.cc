@@ -9,11 +9,10 @@
 #include <string>
 #include <unordered_map>
 
-#include "../include/db_handler.h"
-#include "../include/http.h"
-#include "../include/socket_handler.h"
+#include "db_handler.h"
+#include "http/request.h"
+#include "socket_handler.h"
 
-using namespace domino;
 constexpr int kPort = 8080;
 constexpr int kBacklogMax = 3;
 
@@ -28,7 +27,7 @@ int create_socket() {
 
 int main() {
   int socket_fd = create_socket();
-  DbHandler db_handler;
+  domino::sqlite::Database db_handler;
 
   struct sockaddr_in address = {0};
   // memset((char *)&address, 0, sizeof(address));
@@ -45,11 +44,11 @@ int main() {
     perror("cannot listen to request");
     return -1;
   }
-  handler::SocketHandler socket_handler;
+  domino::handler::SocketHandler socket_handler;
   while (true) {
     printf("\n+++++++ Waiting for new connection ++++++++\n\n");
     socket_handler.waitForRequestSocket(socket_fd, address, sizeof(address));
-    http::http_request request = socket_handler.parseSocketRequest();
+    domino::http::Request request = socket_handler.parseSocketRequest();
     printf("------------------Hello message sent-------------------\n");
     socket_handler.closeSocket();
   }
