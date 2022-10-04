@@ -8,6 +8,8 @@
 #ifndef DB_HANDLER_H_
 #define DB_HANDLER_H_
 
+namespace domino {
+namespace sqlite {
 const char *kDbName = "bin/file_metadata.db";
 const char *kCreateFileTable =
     "CREATE TABLE IF NOT EXISTS file_metadata("
@@ -25,8 +27,8 @@ const char *kMarkDelete =
 const char *kQueryDelete = "SELECT * FROM file_metadata WHERE deleted = true;";
 const char *kDeleteRow = "DELETE FROM file_metadata WHERE file_name=\"%s\";";
 
-namespace domino {
-struct db_row {
+class Row {
+ public:
   std::string id;
   std::string file_name;
   bool deleted;
@@ -37,7 +39,7 @@ struct db_row {
   }
 };
 
-class DbHandler {
+class Database {
  private:
   sqlite3 *db;
 
@@ -53,8 +55,8 @@ class DbHandler {
     checkRC(rc);
   }
 
-  std::vector<db_row> execQuerySqlStmt(const char *sql_stmt) {
-    std::vector<db_row> rows;
+  std::vector<Row> execQuerySqlStmt(const char *sql_stmt) {
+    std::vector<Row> rows;
 
     sqlite3_stmt *stmt;
     int rc = sqlite3_prepare_v2(db, sql_stmt, -1, &stmt, NULL);
@@ -75,14 +77,14 @@ class DbHandler {
   void createMainTable() { execActionSqlStmt(kCreateFileTable); }
 
  public:
-  DbHandler() {
+  Database() {
     int rc = sqlite3_open(kDbName, &db);
     checkRC(rc);
 
     createMainTable();
   }
 
-  DbHandler(std::string test_db) {
+  Database(std::string test_db) {
     int rc = sqlite3_open(test_db.c_str(), &db);
     checkRC(rc);
 
@@ -107,17 +109,17 @@ class DbHandler {
     return sqlite3_changes(db) == 1;
   }
 
-  std::optional<db_row> getFile(std::string file_name) {
+  std::optional<Row> getFile(std::string file_name) {
     char sql_stmt[512];
     sprintf(sql_stmt, kQueryFile, file_name.c_str());
 
-    std::vector<db_row> rows = execQuerySqlStmt(sql_stmt);
+    std::vector<Row> rows = execQuerySqlStmt(sql_stmt);
 
     if (rows.size() == 1) return rows[0];
     return {};
   }
 
-  std::vector<db_row> getDeleteRows() { return execQuerySqlStmt(kQueryDelete); }
+  std::vector<Row> getDeleteRows() { return execQuerySqlStmt(kQueryDelete); }
 
   bool deleteRow(std::string file_name) {
     char sql_stmt[512];
@@ -129,5 +131,6 @@ class DbHandler {
   }
 };
 
+}  // namespace sqlite
 }  // namespace domino
 #endif  // DB_HANDLER_H_
