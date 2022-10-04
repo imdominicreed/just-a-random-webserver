@@ -2,8 +2,8 @@
 #include <fstream>
 #include <string>
 
-#ifndef FILE_HANDLER_H
-#define FILE_HANDLER_H
+#ifndef FILE_HANDLER_H_
+#define FILE_HANDLER_H_
 
 namespace domino {
 
@@ -75,4 +75,4 @@ class FileHandler {
 }  // namespace handler
 }  // namespace domino
 
-#endif
+#endif  // FILE_HANDLER_H_
