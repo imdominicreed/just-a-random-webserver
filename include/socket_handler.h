@@ -74,7 +74,15 @@ class SocketHandler {
       std::string arg = endpoint.substr(index, next_index - index);
       int equal_index = arg.find("=");
       std::string key = arg.substr(0, equal_index);
-      std::string value = arg.substr(equal_index + 1);
+
+      std::string value;
+      // an index of -1 causes to substr to return the entire string
+      // to avoid this, we assign the value to an empty string
+      if (equal_index == -1) {
+        value = "";
+      } else {
+        value = arg.substr(equal_index + 1);
+      }
       printf("key:%s value: %s\n", key.c_str(), value.c_str());
       args[key] = value;
       index = next_index;
