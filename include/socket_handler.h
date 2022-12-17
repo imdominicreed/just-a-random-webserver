@@ -56,42 +56,6 @@ class SocketHandler {
     return std::string(file_name);
   }
 
-  void parseArgs(std::string &endpoint,
-                 std::unordered_map<std::string, std::string> &args) {
-    // Find Start of Args
-    size_t start = endpoint.find("?");
-    // If npos then no args to read
-    if (start == std::string::npos) {
-      return;
-    }
-
-    // Parses indivdual args
-    size_t index = start;
-    size_t next_index;
-    while (index != std::string::npos) {
-      index++;
-      next_index = endpoint.find("&", index);
-      std::string arg = endpoint.substr(index, next_index - index);
-      int equal_index = arg.find("=");
-      std::string key = arg.substr(0, equal_index);
-
-      std::string value;
-      // an index of -1 causes to substr to return the entire string
-      // to avoid this, we assign the value to an empty string
-      if (equal_index == -1) {
-        value = "";
-      } else {
-        value = arg.substr(equal_index + 1);
-      }
-      printf("key:%s value: %s\n", key.c_str(), value.c_str());
-      args[key] = value;
-      index = next_index;
-    }
-
-    // Erases Args from endpoint
-    endpoint.erase(start);
-  }
-
   std::string substringToken(size_t &http_index, std::string &http_string,
                              std::string delimiter) {
     size_t end = http_string.find(delimiter, http_index);
@@ -142,47 +106,17 @@ class SocketHandler {
   void closeSocket() { close(socket_fd); }
 
   domino::http::Request parseSocketRequest() {
-    domino::http::Request request{};
-
     char buffer[kBufferSize];
     size_t amount_read = readBuffer(buffer, kBufferSize);
     std::string http_string(buffer, amount_read);
+    domino::http::Request request(http_string);
+    request.Initialize();
 
-    size_t http_index = 0;
-    std::string method = substringToken(http_index, http_string, " ");
-    if (method != "GET" && method != "POST") {
+    if (request.method == http::Method::kUnsupported) {
       throw std::invalid_argument(
           "Invalid HTTP Request: Only support GET and POST!");
     }
-
-    std::string endpoint_and_args =
-        substringToken(http_index, http_string, " ");
-    std::unordered_map<std::string, std::string> args;
-    parseArgs(endpoint_and_args, args);
-    request.endpoint = endpoint_and_args;
-    request.args = args;
-
-    if (method == "GET") {
-      request.method = http::kGet;
-      this->respondOK();
-      return request;
-    }
-    request.method = http::kPost;
-
-    substringToken(
-        http_index, http_string,
-        "Content-Type: ");  // Technically headers are case-insenstive but
-                            // practice is that they are supposed to be
-                            // capatilized can be fixed later!
-    request.args["content_type"] =
-        substringToken(http_index, http_string, "\n");
-
-    http_index = 0;
-    substringToken(http_index, http_string, "Content-Length: ");
-    std::string str_size = substringToken(http_index, http_string, "\n");
-    unsigned long long size = strtoul(str_size.c_str(), NULL, 10);
-    request.args["file_name"] = readBinaryData(size, http_string);
-
+    this->respondOK();
     return request;
   }
 };
