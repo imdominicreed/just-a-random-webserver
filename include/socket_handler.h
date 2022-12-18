@@ -1,11 +1,18 @@
-#include <netinet/in.h>
-
-#include <exception>
-
-#include "file_handler.h"
-
 #ifndef SOCKET_HANDLER_H_
 #define SOCKET_HANDLER_H_
+
+#include <netinet/in.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+#include <exception>
+#include <unordered_map>
+
+#include "file_handler.h"
+#include "http/request.h"
 
 namespace domino {
 namespace handler {
@@ -149,6 +156,7 @@ class SocketHandler {
 
     if (method == "GET") {
       request.method = http::kGet;
+      this->respondOK();
       return request;
     }
     request.method = http::kPost;
