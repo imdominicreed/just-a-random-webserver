@@ -13,6 +13,7 @@
 #include "http/request.h"
 #include "socket_handler.h"
 
+constexpr int kEnable = 1;
 constexpr int kPort = 8080;
 constexpr int kBacklogMax = 3;
 
@@ -22,10 +23,26 @@ int create_socket() {
     perror("cannot create socket_fd");
     return -1;  // TODO: Better return code.
   }
+
+  // force the OS to bind to the port even if it is in use, for more info see
+  // https://stackoverflow.com/a/24208409
+  // https://stackoverflow.com/a/24194999
+  if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &kEnable, sizeof(int)) <
+      0) {
+    perror("setsockopt(SO_REUSEADDR) failed");
+    return -1;
+  }
   return server_fd;
 }
 
+void signal_handler(int signal_number) {
+  std::cout << "Interrupt signal (" << signal_number << ") received.\n";
+  exit(signal_number);
+}
+
 int main() {
+  signal(SIGINT, signal_handler);
+
   int socket_fd = create_socket();
   domino::sqlite::Database db_handler;
 
