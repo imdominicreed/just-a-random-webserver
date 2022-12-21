@@ -90,7 +90,6 @@ class Request {
       } else {
         value = arg.substr(equal_index + 1);
       }
-      printf("key:%s value: %s\n", key.c_str(), value.c_str());
       args_map[key] = value;
       index = next_index;
     }
