@@ -13,6 +13,7 @@
 
 #include "file_handler.h"
 #include "http/request.h"
+#include "http/response.h"
 
 namespace domino {
 namespace handler {
@@ -92,9 +93,14 @@ class SocketHandler {
     handler.close();
   }
 
-  void respondOK() { writeBuffer((char *)kOkResponse, strlen(kOkResponse)); }
+  void respondOK() {
+    http::Response response;
+    response.SetStatus(http::Status::kOk);
+    std::string body = response.ToBuffer();
+    writeBuffer(body.c_str(), strlen(body.c_str()));
+  }
 
-  void writeBuffer(char *buffer, size_t n_bytes) {
+  void writeBuffer(const char *buffer, size_t n_bytes) {
     if ((send(socket_fd, buffer, n_bytes, 0)) == -1) {
       throw std::runtime_error("Error Sending Bytes!");
     }
