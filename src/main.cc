@@ -14,7 +14,6 @@ int main() {
   signal(SIGINT, signal_handler);
 
   domino::http::Server server(kPort);
-  server.Initialize();
   server.Start();
 
   return 0;
