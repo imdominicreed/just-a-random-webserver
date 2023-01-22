@@ -12,6 +12,8 @@ class SocketWriter {
  public:
   SocketWriter(int socket_fd) : socket_fd(socket_fd) {}
 
+  SocketWriter() {}
+
   bool Close() {
     // for more information on close()'s return values
     // see https://linux.die.net/man/3/close

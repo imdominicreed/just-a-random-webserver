@@ -54,7 +54,11 @@ class Server {
         continue;
       }
 
-      printf("------------------Hello message sent-------------------\n");
+      try {
+        endpoint_handler->second(request, response);
+      } catch (const std::exception&) {
+        response.SendStaticResponse(Status::kInternalServerError);
+      }
     }
   }
 
