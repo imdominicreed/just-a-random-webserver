@@ -1,5 +1,5 @@
-#ifndef SOCKET_HANDLER_H_
-#define SOCKET_HANDLER_H_
+#ifndef SOCKET_READER_H_
+#define SOCKET_READER_H_
 
 #include <netinet/in.h>
 #include <stdio.h>
@@ -16,7 +16,7 @@
 #include "http/response.h"
 
 namespace domino {
-namespace handler {
+namespace tcp {
 
 constexpr char kFormatHeader[] =
     "HTTP/1.1 200 OK\r\nContent-Length: %llu\r\nContent-Type: %s\r\n\r\n";
@@ -29,9 +29,9 @@ constexpr int kEnable = 1;
 
 constexpr int kMaximumPendingConnections = 3;
 
-class SocketHandler {
+class SocketReader {
  public:
-  SocketHandler(int port) : port(port) {}
+  SocketReader(int port) : port(port) {}
 
   void Initialize() {
     this->address = {0};
@@ -72,34 +72,6 @@ class SocketHandler {
   struct sockaddr_in address;
   int socket_file_descriptor;
 
-  std::string readBinaryData(int socket_fd, unsigned long long content_size,
-                             std::string in_buffer) {
-    // Creates New File for Post Data
-    FileHandler file_handler;
-    std::string file_name = file_handler.createFile();
-    file_handler.selectFile(file_name);
-
-    // Any remaining data in previous buffer gets written out;
-    size_t index = 0;
-    substringToken(index, in_buffer, "\r\n\r\n");
-    unsigned long long sum = in_buffer.size() - index;
-    in_buffer = in_buffer.substr(index);
-    file_handler.writeFileBuffer((char *)in_buffer.c_str(), sum);
-
-    // Writes file from socket using buffer
-    char buffer[kBufferSize];
-    while (sum < content_size) {
-      size_t data_read = readBuffer(socket_fd, buffer, kBufferSize);
-      file_handler.writeFileBuffer(buffer, data_read);
-      sum += data_read;
-    }
-
-    // Response OK
-    respondOK(socket_fd);
-
-    return std::string(file_name);
-  }
-
   std::string substringToken(size_t &http_index, std::string &http_string,
                              std::string delimiter) {
     size_t end = http_string.find(delimiter, http_index);
@@ -119,47 +91,13 @@ class SocketHandler {
     return socket_fd;
   }
 
-  void sendHeader(int socket_fd, unsigned long long content_length,
-                  std::string content_type) {
-    char header[1024] = {0};
-    sprintf(header, kFormatHeader, content_length, content_type.c_str());
-    writeBuffer(socket_fd, header, strlen(header));
-  }
-
-  void sendFile(int socket_fd, std::string file_path,
-                std::string content_type) {
-    FileHandler handler;
-    handler.selectFile(file_path);
-    sendHeader(socket_fd, handler.getFileSize(), content_type);
-    char buffer[kBufferSize];
-    while (!handler.isEof()) {
-      size_t bytes_read = handler.readFileBuffer(buffer, kBufferSize);
-      writeBuffer(socket_fd, buffer, bytes_read);
-    }
-    handler.close();
-  }
-
-  void respondOK(int socket_fd) {
-    http::Response response;
-    response.SetStatus(http::Status::kOk);
-    std::string body = response.ToBuffer();
-    writeBuffer(socket_fd, body.c_str(), strlen(body.c_str()));
-  }
-
-  void writeBuffer(int socket_fd, const char *buffer, size_t n_bytes) {
-    if ((send(socket_fd, buffer, n_bytes, 0)) == -1) {
-      throw std::runtime_error("Error Sending Bytes!");
-    }
-  }
-  size_t readBuffer(int socket_fd, char *buffer, size_t n_bytes) {
+  size_t ParseHttpHeader(int socket_fd, char *buffer) {
     return read(socket_fd, buffer, kBufferSize);
   }
 
-  void closeSocket(int socket_fd) { close(socket_fd); }
-
   domino::http::Request ParseRequestFromSocketDescriptor(int socket_fd) {
     char buffer[kBufferSize];
-    size_t amount_read = readBuffer(socket_fd, buffer, kBufferSize);
+    size_t amount_read = ParseHttpHeader(socket_fd, buffer);
     std::string http_string(buffer, amount_read);
     domino::http::Request request(http_string);
     request.Initialize();
@@ -168,11 +106,10 @@ class SocketHandler {
       throw std::invalid_argument(
           "Invalid HTTP Request: Only support GET and POST!");
     }
-    this->respondOK(socket_fd);
     return request;
   }
 };
-}  // namespace handler
+}  // namespace tcp
 }  // namespace domino
 
-#endif  // SOCKET_HANDLER_H_
+#endif  // SOCKET_READER_H_
