@@ -10,61 +10,23 @@
 
 namespace domino {
 namespace http {
-constexpr int kEnable = 1;
-constexpr int kMaximumPendingConnections = 3;
 class Server {
  public:
-  Server(int port) : port(port) {}
-
-  void Initialize() {
-    this->address = {0};
-
-    this->address.sin_family = AF_INET;
-    // we default sin_addr.s_addr to INADDR_ANY as we don't forsee the
-    // need to specify a network interface to add that logic right now
-    this->address.sin_addr.s_addr = htonl(INADDR_ANY);
-    this->address.sin_port = htons(this->port);
-
-    if ((this->socket_file_descriptor = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-      perror("cannot create socket file descriptor");
-      return;  // TODO: Better return code.
-    }
-
-    // force the OS to bind to the port even if it is in use, for more info see
-    // https://stackoverflow.com/a/24208409
-    // https://stackoverflow.com/a/24194999
-    if (setsockopt(this->socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR,
-                   &kEnable, sizeof(int)) < 0) {
-      perror("setsockopt(SO_REUSEADDR) failed");
-      return;
-    }
-
-    if (bind(this->socket_file_descriptor, (struct sockaddr *)&this->address,
-             sizeof(this->address)) < 0) {
-      perror("unable to bind to socket file descriptor");
-    }
-  }
+  Server(int port) : socket_handler(handler::SocketHandler(port)) {}
 
   void Start() {
-    if (listen(this->socket_file_descriptor, kMaximumPendingConnections) < 0) {
-      perror("cannot listen to request");
-      return;
-    }
-    domino::handler::SocketHandler socket_handler;
+    socket_handler.Initialize();
     while (true) {
       printf("\n+++++++ Waiting for new connection ++++++++\n\n");
-      socket_handler.waitForRequestSocket(this->socket_file_descriptor, address,
-                                          sizeof(address));
-      Request request = socket_handler.parseSocketRequest();
+      int request_fd = socket_handler.waitForRequestSocket();
+      Request request = socket_handler.parseSocketRequest(request_fd);
       printf("------------------Hello message sent-------------------\n");
-      socket_handler.closeSocket();
+      socket_handler.closeSocket(request_fd);
     }
   }
 
  private:
-  int port;
-  int socket_file_descriptor;
-  struct sockaddr_in address;
+  handler::SocketHandler socket_handler;
 };
 }  // namespace http
 }  // namespace domino

@@ -25,11 +25,54 @@ constexpr int kBufferSize = 8192;  // Headers cannot exceed 8KB if so then bug
 
 constexpr char kOkResponse[] = "HTTP/1.1 200 OK\r\n\r\n";
 
-class SocketHandler {
- private:
-  int socket_fd;
+constexpr int kEnable = 1;
 
-  std::string readBinaryData(unsigned long long content_size,
+constexpr int kMaximumPendingConnections = 3;
+
+class SocketHandler {
+ public:
+  SocketHandler(int port) : port(port) {}
+
+  void Initialize() {
+    this->address = {0};
+
+    this->address.sin_family = AF_INET;
+    // we default sin_addr.s_addr to INADDR_ANY as we don't forsee the
+    // need to specify a network interface to add that logic right now
+    this->address.sin_addr.s_addr = htonl(INADDR_ANY);
+    this->address.sin_port = htons(this->port);
+
+    if ((this->socket_file_descriptor = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+      perror("cannot create socket file descriptor");
+      return;  // TODO: Better return code.
+    }
+
+    // force the OS to bind to the port even if it is in use, for more info see
+    // https://stackoverflow.com/a/24208409
+    // https://stackoverflow.com/a/24194999
+    if (setsockopt(this->socket_file_descriptor, SOL_SOCKET, SO_REUSEADDR,
+                   &kEnable, sizeof(int)) < 0) {
+      perror("setsockopt(SO_REUSEADDR) failed");
+      return;
+    }
+
+    if (bind(this->socket_file_descriptor, (struct sockaddr *)&this->address,
+             sizeof(this->address)) < 0) {
+      perror("unable to bind to socket file descriptor");
+    }
+
+    if (listen(this->socket_file_descriptor, kMaximumPendingConnections) < 0) {
+      perror("cannot listen to request");
+      return;
+    }
+  }
+
+ private:
+  int port;
+  struct sockaddr_in address;
+  int socket_file_descriptor;
+
+  std::string readBinaryData(int socket_fd, unsigned long long content_size,
                              std::string in_buffer) {
     // Creates New File for Post Data
     FileHandler file_handler;
@@ -46,13 +89,13 @@ class SocketHandler {
     // Writes file from socket using buffer
     char buffer[kBufferSize];
     while (sum < content_size) {
-      size_t data_read = readBuffer(buffer, kBufferSize);
+      size_t data_read = readBuffer(socket_fd, buffer, kBufferSize);
       file_handler.writeFileBuffer(buffer, data_read);
       sum += data_read;
     }
 
     // Response OK
-    respondOK();
+    respondOK(socket_fd);
 
     return std::string(file_name);
   }
@@ -66,54 +109,57 @@ class SocketHandler {
   }
 
  public:
-  int waitForRequestSocket(int listen_socket, struct sockaddr_in address,
-                           socklen_t addr_len) {
-    if ((socket_fd = accept(listen_socket, (struct sockaddr *)&address,
+  int waitForRequestSocket() {
+    int addr_len = sizeof(address);
+    int socket_fd = 0;
+    if ((socket_fd = accept(socket_file_descriptor, (struct sockaddr *)&address,
                             (socklen_t *)&addr_len)) < 0) {
       throw std::runtime_error("Failed Listening to socket!");
     }
     return socket_fd;
   }
 
-  void sendHeader(unsigned long long content_length, std::string content_type) {
+  void sendHeader(int socket_fd, unsigned long long content_length,
+                  std::string content_type) {
     char header[1024] = {0};
     sprintf(header, kFormatHeader, content_length, content_type.c_str());
-    writeBuffer(header, strlen(header));
+    writeBuffer(socket_fd, header, strlen(header));
   }
 
-  void sendFile(std::string file_path, std::string content_type) {
+  void sendFile(int socket_fd, std::string file_path,
+                std::string content_type) {
     FileHandler handler;
     handler.selectFile(file_path);
-    sendHeader(handler.getFileSize(), content_type);
+    sendHeader(socket_fd, handler.getFileSize(), content_type);
     char buffer[kBufferSize];
     while (!handler.isEof()) {
       size_t bytes_read = handler.readFileBuffer(buffer, kBufferSize);
-      writeBuffer(buffer, bytes_read);
+      writeBuffer(socket_fd, buffer, bytes_read);
     }
     handler.close();
   }
 
-  void respondOK() {
+  void respondOK(int socket_fd) {
     http::Response response;
     response.SetStatus(http::Status::kOk);
     std::string body = response.ToBuffer();
-    writeBuffer(body.c_str(), strlen(body.c_str()));
+    writeBuffer(socket_fd, body.c_str(), strlen(body.c_str()));
   }
 
-  void writeBuffer(const char *buffer, size_t n_bytes) {
+  void writeBuffer(int socket_fd, const char *buffer, size_t n_bytes) {
     if ((send(socket_fd, buffer, n_bytes, 0)) == -1) {
       throw std::runtime_error("Error Sending Bytes!");
     }
   }
-  size_t readBuffer(char *buffer, size_t n_bytes) {
+  size_t readBuffer(int socket_fd, char *buffer, size_t n_bytes) {
     return read(socket_fd, buffer, kBufferSize);
   }
 
-  void closeSocket() { close(socket_fd); }
+  void closeSocket(int socket_fd) { close(socket_fd); }
 
-  domino::http::Request parseSocketRequest() {
+  domino::http::Request parseSocketRequest(int socket_fd) {
     char buffer[kBufferSize];
-    size_t amount_read = readBuffer(buffer, kBufferSize);
+    size_t amount_read = readBuffer(socket_fd, buffer, kBufferSize);
     std::string http_string(buffer, amount_read);
     domino::http::Request request(http_string);
     request.Initialize();
@@ -122,7 +168,7 @@ class SocketHandler {
       throw std::invalid_argument(
           "Invalid HTTP Request: Only support GET and POST!");
     }
-    this->respondOK();
+    this->respondOK(socket_fd);
     return request;
   }
 };
