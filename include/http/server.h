@@ -18,8 +18,9 @@ class Server {
     socket_handler.Initialize();
     while (true) {
       printf("\n+++++++ Waiting for new connection ++++++++\n\n");
-      int request_fd = socket_handler.waitForRequestSocket();
-      Request request = socket_handler.parseSocketRequest(request_fd);
+      int request_fd = socket_handler.ListenForRequest();
+      Request request =
+          socket_handler.ParseRequestFromSocketDescriptor(request_fd);
       printf("------------------Hello message sent-------------------\n");
       socket_handler.closeSocket(request_fd);
     }

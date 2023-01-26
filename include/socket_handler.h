@@ -109,7 +109,7 @@ class SocketHandler {
   }
 
  public:
-  int waitForRequestSocket() {
+  int ListenForRequest() {
     int addr_len = sizeof(address);
     int socket_fd = 0;
     if ((socket_fd = accept(socket_file_descriptor, (struct sockaddr *)&address,
@@ -157,7 +157,7 @@ class SocketHandler {
 
   void closeSocket(int socket_fd) { close(socket_fd); }
 
-  domino::http::Request parseSocketRequest(int socket_fd) {
+  domino::http::Request ParseRequestFromSocketDescriptor(int socket_fd) {
     char buffer[kBufferSize];
     size_t amount_read = readBuffer(socket_fd, buffer, kBufferSize);
     std::string http_string(buffer, amount_read);
