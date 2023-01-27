@@ -5,14 +5,24 @@
 #include <stdio.h>
 #include <sys/socket.h>
 
+#include <iostream>
+#include <unordered_map>
+
 #include "http/request.h"
 #include "socket_handler.h"
 
 namespace domino {
 namespace http {
+
+typedef std::function<void(Request, Response)> EndpointHandler;
+
 class Server {
  public:
   Server(int port) : socket_handler(handler::SocketHandler(port)) {}
+
+  void Register(Method method, std::string endpoint, EndpointHandler handler) {
+    endpoint_map[method][endpoint] = handler;
+  }
 
   void Start() {
     socket_handler.Initialize();
@@ -28,6 +38,8 @@ class Server {
 
  private:
   handler::SocketHandler socket_handler;
+  std::unordered_map<Method, std::unordered_map<std::string, EndpointHandler>>
+      endpoint_map;
 };
 }  // namespace http
 }  // namespace domino

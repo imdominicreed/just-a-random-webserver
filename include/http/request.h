@@ -10,7 +10,7 @@ namespace http {
 
 constexpr char kSlash = '/';
 
-enum Method { kGet, kPost, kUnsupported };
+enum class Method { kGet, kPost, kUnsupported };
 
 std::unordered_map<std::string, Method> string_to_method_map{};
 
