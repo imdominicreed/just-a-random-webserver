@@ -13,25 +13,28 @@ class Response {
   Response() : status_(Status::kOk) {}
   void SetStatus(Status status) { status_ = status; }
 
-  std::string ToBuffer() {
+  std::string ToBuffer() const {
     std::stringstream ss;
 
+    std::streambuf* copy = body_.rdbuf();
     ss << "HTTP/1.1 " << status_ << " " << StatusToString(status_) << "\r\n";
-
-    ss << "Content-Length: " << GetBodyLength() << "\r\n";
+    ss << "Content-Length: " << copy->pubseekoff(0, body_.end) << "\r\n";
     ss << "\r\n";
-    ss << body_.str();
+    ss << copy;
 
     return ss.str();
+  }
+
+  size_t GetBodySize() const {
+    // the below is from this answer:
+    // https://stackoverflow.com/a/27429040
+    std::streambuf* copy = body_.rdbuf();
+    return copy->pubseekoff(0, body_.end);
   }
 
  private:
   Status status_;
   std::stringstream body_;
-  size_t GetBodyLength() {
-    body_.seekp(0, std::ios::end);
-    return body_.tellp();
-  }
 };
 }  // namespace http
 }  // namespace domino
