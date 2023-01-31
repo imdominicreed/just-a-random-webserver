@@ -5,13 +5,27 @@
 #include <string_view>
 
 #include "http/status.h"
+#include "tcp/socket_writer.h"
 
 namespace domino {
 namespace http {
 class Response {
  public:
-  Response() : status_(Status::kOk) {}
+  Response(int socket_fd)
+      : status_(Status::kOk), _socket_writer(tcp::SocketWriter(socket_fd)) {}
+
   void SetStatus(Status status) { status_ = status; }
+
+  /**
+   * Write a given HTTP status' response to the socket. Closes said socket
+   * after writing.
+   */
+  void SendStaticResponse(Status status) {
+    SetStatus(status);
+    const char* body = this->ToBuffer().c_str();
+    _socket_writer.WriteBuffer(body, strlen(body));
+    _socket_writer.Close();
+  };
 
   std::string ToBuffer() const {
     std::stringstream ss;
@@ -35,6 +49,7 @@ class Response {
  private:
   Status status_;
   std::stringstream body_;
+  tcp::SocketWriter _socket_writer;
 };
 }  // namespace http
 }  // namespace domino

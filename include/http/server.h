@@ -10,7 +10,6 @@
 
 #include "http/request.h"
 #include "tcp/socket_reader.h"
-#include "tcp/socket_writer.h"
 
 namespace domino {
 namespace http {
@@ -33,8 +32,7 @@ class Server {
       int request_fd = socket_reader.ListenForRequest();
       Request request =
           socket_reader.ParseRequestFromSocketDescriptor(request_fd);
-      tcp::SocketWriter socket_writer(request_fd);
-      Response response;
+      Response response(request_fd);
 
       // check if the HTTP method we recieved has any endpoints available
       // ense return 404
@@ -42,9 +40,7 @@ class Server {
           Method, std::unordered_map<std::string, EndpointHandler>>::iterator
           method_to_endpoint_map = endpoint_map.find(request.method);
       if (method_to_endpoint_map == endpoint_map.end()) {
-        response.SetStatus(Status::kNotFound);
-        socket_writer.SendHttpResponse(response);
-        socket_writer.Close();
+        response.SendStaticResponse(Status::kNotFound);
         continue;
       }
 
@@ -54,14 +50,11 @@ class Server {
           endpoint_handler =
               method_to_endpoint_map->second.find(request.endpoint);
       if (endpoint_handler == method_to_endpoint_map->second.end()) {
-        response.SetStatus(Status::kNotFound);
-        socket_writer.SendHttpResponse(response);
-        socket_writer.Close();
+        response.SendStaticResponse(Status::kNotFound);
         continue;
       }
 
       printf("------------------Hello message sent-------------------\n");
-      socket_writer.Close();
     }
   }
 
