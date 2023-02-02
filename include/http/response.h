@@ -12,9 +12,30 @@ namespace http {
 class Response {
  public:
   Response(int socket_fd)
-      : status_(Status::kOk), _socket_writer(tcp::SocketWriter(socket_fd)) {}
+      : status_(Status::kOk), _socket_writer(tcp::SocketWriter(socket_fd)) {
+    body_ << "";
+  }
+
+  Response(const Response& original) {
+    status_ = original.status_;
+    body_ << original.body_.rdbuf();
+    _socket_writer = tcp::SocketWriter(original._socket_writer);
+  }
 
   void SetStatus(Status status) { status_ = status; }
+
+  void SetBody(const std::string& value) {
+    body_.clear();
+    body_ << value;
+  }
+
+  void Send() {
+    std::string buffer = this->ToBuffer();
+    const char* buffer_as_char_pointer = buffer.c_str();
+    _socket_writer.WriteBuffer(buffer_as_char_pointer,
+                               strlen(buffer_as_char_pointer));
+    _socket_writer.Close();
+  }
 
   /**
    * Write a given HTTP status' response to the socket. Closes said socket
@@ -22,9 +43,7 @@ class Response {
    */
   void SendStaticResponse(Status status) {
     SetStatus(status);
-    const char* body = this->ToBuffer().c_str();
-    _socket_writer.WriteBuffer(body, strlen(body));
-    _socket_writer.Close();
+    Send();
   };
 
   std::string ToBuffer() const {
@@ -34,7 +53,7 @@ class Response {
     ss << "HTTP/1.1 " << status_ << " " << StatusToString(status_) << "\r\n";
     ss << "Content-Length: " << copy->pubseekoff(0, body_.end) << "\r\n";
     ss << "\r\n";
-    ss << copy;
+    ss << body_.str();
 
     return ss.str();
   }
