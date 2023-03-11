@@ -4,11 +4,14 @@
 #include <sstream>
 #include <string_view>
 
+#include "db_handler.h"
+#include "file_handler.h"
 #include "http/status.h"
 #include "tcp/socket_writer.h"
 
 namespace domino {
 namespace http {
+const size_t kBufferSize = 1024;
 class Response {
  public:
   Response(int socket_fd)
@@ -58,6 +61,19 @@ class Response {
     return ss.str();
   }
 
+  void SendFileHeader(size_t n) {
+    std::stringstream ss;
+    ss << "HTTP/1.1 " << status_ << " " << StatusToString(status_) << "\r\n";
+    ss << "Content-Length: " << n << "\r\n";
+    ss << "\r\n";
+
+    std::string buffer = ss.str();
+    const char* buffer_as_char_pointer = buffer.c_str();
+    std::cout << buffer_as_char_pointer[0] << std::endl;
+    _socket_writer.WriteBuffer(buffer_as_char_pointer,
+                               strlen(buffer_as_char_pointer));
+  }
+
   size_t GetBodySize() const {
     // the below is from this answer:
     // https://stackoverflow.com/a/27429040
@@ -65,10 +81,36 @@ class Response {
     return copy->pubseekoff(0, body_.end);
   }
 
+  void SendFile(std::string request_file_name) {
+    std::optional<sqlite::Row> file_row =
+        _db_handler.getFile(request_file_name);
+
+    if (!file_row.has_value()) {
+      SetStatus(Status::kBadRequest);
+      SetBody("File not found!");
+      Send();
+    } else {
+      _file_handler.selectFile(file_row.value().file_name);
+
+      SetStatus(Status::kOk);
+      SendFileHeader(_file_handler.getFileSize());
+
+      char buffer[kBufferSize];
+
+      while (!_file_handler.isEof()) {
+        size_t size = _file_handler.readFileBuffer(buffer, kBufferSize);
+        _socket_writer.WriteBuffer(buffer, size);
+      }
+      _socket_writer.Close();
+    }
+  }
+
  private:
   Status status_;
   std::stringstream body_;
   tcp::SocketWriter _socket_writer;
+  handler::FileHandler _file_handler;
+  sqlite::Database _db_handler;
 };
 }  // namespace http
 }  // namespace domino
